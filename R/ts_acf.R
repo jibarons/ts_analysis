@@ -15,7 +15,7 @@ ts_acf <- function(ts, type = c("correlation", "partial"), plot = TRUE,
 
   acf <- lapply(
     type,
-    function(m) ggplot2::fortify(stats::acf(ts, type = m, lag.max = 36, plot = FALSE))
+    function(m) ggplot2::fortify(stats::acf(ts, type = m, lag.max = 36, plot = FALSE)) # needs `ggfortify` to coerce stats::acf
   )
   names(acf) <- type
   
@@ -28,14 +28,14 @@ ts_acf <- function(ts, type = c("correlation", "partial"), plot = TRUE,
       acf, type, 
       ~ .x %>% {
         ggplot2::ggplot(.x, ggplot2::aes(Lag, ACF)) +
-          ggplot2::geom_point(size = 2) +
-          ggplot2::geom_segment(ggplot2::aes(x = Lag, xend = Lag, y = 0, yend = ACF), size = 1) +
+          ggplot2::geom_point(size = 1.5) +
+          ggplot2::geom_segment(ggplot2::aes(x = Lag, xend = Lag, y = 0, yend = ACF), size = 0.75) +
           ggplot2::geom_hline(yintercept = 0) +
           ggplot2::geom_hline(yintercept = .$lower, linetype = linetype, color = color) +
           ggplot2::geom_hline(yintercept = .$upper, linetype = linetype, color = color) +
           ggplot2::scale_x_continuous(breaks = seq(0, max(.$Lag, na.rm = TRUE), 1)) +
           ggplot2::scale_y_continuous(breaks = seq(-1, 1, 0.25)) +
-          ggplot2::labs(title = .y) +
+          # ggplot2::labs(title = .y) +
           ggplot2::theme_bw()
       }
     )

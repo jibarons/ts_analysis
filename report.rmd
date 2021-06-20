@@ -1,0 +1,207 @@
+---
+title: "Time series analysis of births in Catalunya (1975-2006)"
+author: "Julian Ibarguen"
+date: "20/06/2020"
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{makecell}
+- \usepackage{colortbl}
+- \usepackage{wrapfig}
+- \usepackage{subfig}
+- \usepackage{lscape}
+- \usepackage{natbib}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    extra_dependencies: "subfig"
+
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+options(digits = 7)
+```
+
+```{r helpers, include = FALSE}
+fmat.num <- function(x, d = 0) format(
+  as.numeric(sprintf(paste0("%.",d,"f"), x)), big.mark = ","
+)
+fmat.per <- function(x, d = 1) sprintf(paste0("%.",d,"f", "%%"), x)
+fmat.sig <- function(x) ifelse(x < 0.05, "<0.05", ">=0.05")
+```
+
+[Project scripts and report available here](https://github.com/jibarons/ts_analysis)
+
+## Introduction
+
+We fitted an ARIMA model in the series of birth in Catalunya from `r format(min(data$date), "%B, %Y")` to `r format(max(data$date), "%B, %Y")`. The series has a monthly periodicity comprising a total of `r fmat.num(nrow(data))` observations. We first performed an exploration of the series assessing for stationary; afterwards we performed a series of transformation on the series to achieve an stationary series, which helped us to define the parameters for the model; finally, with the ifnromation of the previous steps, we fitted an ARIMA model for prediction of the next `r fmat.num(predict_n)` periods. 
+
+_Note the purpose of this work was to show the logic of a time series analysis. On real conditions a train set shoudl have been split form the original data to fit the model, and afterward us holdout for the prediction. Here we will predict the next `r predict_n`, despite not having holdout to test our prediction._ 
+
+## Exporatory analysis of the original series
+
+We observe the births series is non-stationary with a overall decreasing tendency and a seasonal cycle of 12 months (Figure1). In practical terms we can say the simple Autocorrelation Function (ACF) allow us to observe if the series has trend, while the partial ACF allow us to assess for the order of the series. As we observe from the correlation plots (Figure 2):
+
+* From the simple ACF we can observe a decreasing trend corresponding with the trend observe in the series sequence. We observe the progressive decreasing trend of the coefficients, which would be pointing at a MA serie of higher order, as a MA model of order one should have cut that trend in a more relevant and earlier manner. Furthermore, we observe that every 12 lags, the decreasing trend breaks, showing a higher coefficient than the previous one. This is showing us the seasonality of the series.
+
+* From the partial ACF we observe the first two lag have are significant and progressively decreasing showing the second order of an AR model. Form the second lag the trend breaks and turn chaotic without a clear pattern, thus pointing to an Moving Average (MA) model. Further we can observe the seasonal patter at month 12 and 24.
+
+After all, we can observe a general hybrid behavior between an AR and a MA models with order AR(2) and MA(3), and with seasonality.
+
+Finally we checked for heterocedasticity with Bartlet's test (Table 1), resulting in a significant p-value of `r het_raw[het_raw$parameter == "p.value", "value"]` we reject the $H_0$ of homogeneity of variances assuming an heterocedastic series.  
+
+
+```{r figure1, fig.show = "hold", out.width = "100%", fig.cap = "Birth Seires Sequence"}
+p_ts_raw
+```
+
+```{r figure2x2, fig.show = "hold", out.width = "50%", fig.cap = "Plots of the Autocorrelation function for Birth Series", fig.subcap = c("Simple autocorrelation function", "Partial autocorrelation function")}
+acf_raw$plots$correlation
+acf_raw$plots$partial
+```
+
+```{r table1, echo = FALSE}
+align.c <- rep("c", ncol(het_raw) - 1)
+# knit table 1
+kableExtra::kbl(
+  het_raw, format = "latex", booktabs = TRUE,
+  align = c("l", align.c), digits = 3, valign = 't',
+   caption = "Bartlett test of homogeneity of variances of Births Series"
+) %>%
+  kableExtra::row_spec(0, bold = TRUE) %>%
+  kableExtra::column_spec(0, bold = TRUE) %>%
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped"), position = "center"
+  )
+```
+
+
+## Tranformation: towards an stationary serie
+
+We started by removing the **non-seasonal trend** of the series with the following formula for differentiation $$z_t = z_t - z_{t-d}$$ being $d$ a number of periods. To proceed, we test to differentiate de series with one and two lags. We tested the correlation between a equivalent numeric value of data and the births series. We assumed the lag differentiation that provided a lower correlation coefficient would be the best differentiation. One lag differentiation resulted in a correlation coefficient of `r fmat.num(lags_ns[[1]][["lag1.coef"]], 3)` while two lag differentiation had a coefficient of `r fmat.num(lags_ns[[2]][["lag2.coef"]], 3)`. Therefore, one lag allow us to remove the non seasonal trend and get closer to an stationary series; the same can be observe in Figure 3. A parameter $d = 1$ would seem to fit the model for non seasonal diferentiation. 
+
+```{r figure3x2, fig.show = "hold", out.width = "50%", fig.cap = "Non-seasonal Differentiation of Birth Series", fig.subcap = c("One lag diferentiation (d = 1)", "Two lag differentiatin (d = 2)")}
+lags_ns[[1]][["lag1.plot"]]
+lags_ns[[2]][["lag2.plot"]]
+```
+
+Once removed non-seasonal trend, we proceed to remove the **seasonal trend**. As we have seen in the exploratory the series have a seasonal cycle of 12 months. Therefore, We test seasonal differentiation with one and two seasonal cycles ($d = 12$ and $d = 24$ respectively). As we observe on Figure 4 the differentiation with the lag of one seasonal cycle (12 months) seems to offer a more stationary series than two. Furthermore, applying a seasonal differentiation of 2 cycles would lead us to lose 24 observations from the data. A parameter $d = 1$ would seem to fit the model for seasonal differentiation. 
+
+```{r figure4x2, fig.show = "hold", out.width = "50%", fig.cap = "Seasonal Differentiation of Birth Series", fig.subcap = c("One lag diferentiation (d = 12)", "Two lag differentiatin (d = 24)")}
+lags_ss[[1]][["lag12.plot"]]
+lags_ss[[2]][["lag24.plot"]]
+```
+
+As we have seen previously in the exploratory analysis the series has some heterocedasticity. Therefore we test again for homocedasticity with Bartlett's tes to see if the current transformations have improved. We observe a p-value of `r fmat.num(het_trans_ns_ss[het_trans_ns_ss$parameter == "p.value", "value"], 5)`, which still is significant, thus we cannot reject heterocedasticity in our series (Table 2). However, we have seen it has nonetheless improved from the original series, moving towards a more stationary series. As logarithmic or exponential transformation would imply a large lost of observation as differentiation has returned approximately 50% of negative values, we refrain from performing further logarithmic or exponential to the series to tackle heterocedasticity further.
+
+```{r table2, echo = FALSE}
+align.c <- rep("c", ncol(het_trans_ns_ss) - 1)
+# knit table 1
+kableExtra::kbl(
+  het_trans_ns_ss, format = "latex", booktabs = TRUE,
+  align = c("l", align.c), digits = 3, valign = 't',
+   caption = "Bartlett test of homogeneity of variances of Differentiated Births Series"
+) %>%
+  kableExtra::row_spec(0, bold = TRUE) %>%
+  kableExtra::column_spec(0, bold = TRUE) %>%
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped"), position = "center"
+  )
+```
+
+After all, we observe the series sequence appears significantly more stationary that the original serie. This also reflect on the ACF plots that have turn  less patterned and chaotic (Figures 5 and 6).
+
+```{r figure6x2, fig.show = "hold", out.width = "50%", fig.cap = "Plots of the Autocorrelation function for Differentiated Birth Series", fig.subcap = c("Simple autocorrelation function", "Partial autocorrelation function")}
+acf_trans$plots$correlation
+acf_trans$plots$partial
+```
+
+
+## Fitting ARIMA model
+
+We have observed that to obtain an stationary series differentiation values ($d$) for non-seasonal or seasonal would be 1. Further we have seen that the order for the AR part model is likely to be two, while the order of an MA is also likely to be greater order (3). Therefore from the exploratory analysis we would choose an ARIMA (2,1,3)(0,1,1). Nonetheless, we will test different models and choose the one that offers: 
+
+1. necessarily whose ACF residuals are not significant (white noise series)
+2. All the confidence interval of 95% level does not includes 0
+3. Has the lowest RMSE as priority measure
+4. Has the lowest AIC
+
+All in all we tested the following models:
+```{r table3, echo = FALSE}
+align.c <- rep("c", ncol(fits_summ) - 1)
+# knit table 1
+kableExtra::kbl(
+  fits_summ, format = "latex", booktabs = TRUE,
+  align = c("l", align.c), digits = 3, valign = 't',
+   caption = "Goodness of fit measures for ARIMA models"
+) %>%
+  kableExtra::row_spec(0, bold = TRUE) %>%
+  kableExtra::column_spec(0, bold = TRUE) %>%
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped", "scale_down")
+  )
+
+```
+
+Observing the results, we confirm that the model that we expected from our exploratory analysis ARIMA(2,1,3)(0,1,1)[12] was the one that offers the best fit among the four models we have tested (Table 3). It resulted in an RMSE of `r fmat.num(min(fits_summ$RMSE))` and AIC of `r fmat.num(fits_summ[which.min(fits_summ$RMSE), "AIC"][[1]], 3)`. Furthermore, we observe that the coefficients confidence interval does not include 0, thus all becoming significant and supporting a good fit. Finally, when we explore at the residual we have obtained a non-significant Ljung-Box test with a p-value of 0.239 (Table 5), rejecting the $H_0$ that the residuals are no _white noise serie_. The ACF of the residuals shows not significance for any of the lags and its distribution is approximately normal (Figure 7). All these justifies the fit of our model.
+
+```{r table4, echo = FALSE}
+align.c <- rep("c", ncol(fits_coef) - 1)
+# knit table 1
+kableExtra::kbl(
+  fits_coef[which(fits_coef$model.desc == "ARIMA(2,1,3)(0,1,1)[12]"), ], 
+  format = "latex", booktabs = TRUE,
+  align = c("l", align.c), digits = 3, valign = 't',
+   caption = "Coeficients and confidence intervals for ARIMA models"
+) %>%
+  kableExtra::row_spec(0, bold = TRUE) %>%
+  kableExtra::column_spec(0, bold = TRUE) %>%
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped"), position = "center"
+  )
+
+```
+
+```{r table5, echo = FALSE}
+align.c <- rep("c", ncol(fits_residuals) - 1)
+# knit table 1
+kableExtra::kbl(
+  fits_residuals, format = "latex", booktabs = TRUE,
+  align = c("l", align.c), digits = 3, valign = 't',
+   caption = "Ljung-Box test"
+) %>%
+  kableExtra::row_spec(0, bold = TRUE) %>%
+  kableExtra::column_spec(0, bold = TRUE) %>%
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped"), position = "center"
+  )
+```
+```{r figure7, fig.show = "hold", out.width = "100%", fig.cap = "Birth Seires Sequence"}
+p_resid_acf
+```
+
+With the model fitted, we are ready to make the prediction of the next `r predict_n` observations. We can see how the prediction follow the trend of the series and captures also its seasonality and trend characteristics (Figure 8). Nonetheless, it cna also be observed how the accuracy of the predicction reduces the further the prediction is from the las observation of the original series. The predicted values for the next 50 observations are offered in Table 6. 
+
+```{r figure8, fig.show = "hold", out.width = "100%", fig.cap = "Birth Seires Sequence with Predicted values"}
+p_predict
+```
+
+```{r table6, echo = FALSE}
+align.c <- rep("c", ncol(fits_residuals) - 1)
+# knit table 1
+kableExtra::kbl(
+  as.data.frame(fit_predict), format = "latex", booktabs = TRUE,
+  align = c("l", align.c), digits = 3, valign = 't',
+   caption = "Predicted values for the next 50 observations"
+) %>%
+  kableExtra::row_spec(0, bold = TRUE) %>%
+  kableExtra::column_spec(0, bold = TRUE) %>%
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped"), position = "center"
+  )
+```
