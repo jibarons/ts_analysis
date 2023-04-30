@@ -1,8 +1,8 @@
 ## Introduction
 
-We fitted an ARIMA model in the series of **births in Catalunya from February 1975 to December 2006**. The series has a monthly periodicity comprising a total of 384 observations. We first performed an exploration of the series assessing for stationary; afterwards we performed a series of transformation on the series to achieve an stationary series, which helped us to define the parameters for the model; finally, with the ifnromation of the previous steps, we fitted an ARIMA model for prediction of the next 50 periods. Note the purpose of this work was to show the logic of a time series analysis. 
+We fitted an ARIMA model in the series of **births in Catalunya from February 1975 to December 2006**. The series has a monthly periodicity comprising a total of 384 observations. We first performed an exploration of the series assessing for stationary; afterward, we performed a series of transformations on the series to achieve a stationary series, which helped us to define the parameters for the model; finally, with the information of the previous steps, we fitted an ARIMA model for prediction of the next 50 periods.
 
-we confirm that the model that we expected from our exploratory analysis **ARIMA(2,1,3)(0,1,1)[12]** was the one that offers the best fit among the four models we have tested. It resulted in an **RMSE of 848.332** and **AIC of 6,081.491**. Furthermore, we observe that the coefficients confidence interval does not include 0, thus all becoming significant and supporting a good fit.
+We confirm that the model that we expected from our exploratory analysis **ARIMA(2,1,3)(0,1,1)[12]** was the one that offers the best fit among the four models we have tested. It resulted in an **RMSE of 848.332** and **AIC of 6,081.491**. Furthermore, we observe that the coefficients confidence interval does not include 0, thus all becoming significant and supporting a good fit.
 
 Two functions have been developed ad-hoc for this project to enhance the outputs for Autocorrelation functions and time series sequencing visualization:
 
